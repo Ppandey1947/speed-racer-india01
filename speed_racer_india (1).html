@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#101827">
+<title>Speed Racer India</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101827;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;touch-action:manipulation}
+#app{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px;gap:8px}
+header{width:min(100%,520px);display:flex;align-items:center;justify-content:space-between;gap:8px}
+h1{font-size:clamp(18px,5vw,25px);margin:0;letter-spacing:.5px}.tag{font-size:11px;color:#a8bdd5}
+.stats{display:flex;gap:8px}.pill{background:#1e2c40;border:1px solid #34465e;border-radius:12px;padding:6px 10px;font-size:12px;min-width:66px;text-align:center}.pill b{display:block;font-size:17px}
+#stage{position:relative;width:min(94vw,430px);height:min(72vh,690px);min-height:390px;border:3px solid #34465e;border-radius:18px;overflow:hidden;background:#267342;box-shadow:0 15px 45px #0008}
+canvas{display:block;width:100%;height:100%}
+#overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:25px;background:#081321c9}
+#overlay.hidden{display:none}#overlay h2{font-size:32px;margin:0 0 8px}#overlay p{color:#d4e0ef;line-height:1.45;margin:0 0 18px}
+button{border:0;border-radius:13px;background:#ffb52e;color:#172033;font-weight:900;font-size:16px;padding:13px 22px;cursor:pointer;box-shadow:0 4px 0 #bd7811}
+.controls{width:min(94vw,430px);display:flex;justify-content:space-between;gap:18px}
+.controls button{flex:1;background:#24364e;color:white;box-shadow:0 4px 0 #142235;border:1px solid #49617e;font-size:25px;padding:10px}
+.hint{font-size:11px;color:#9db0c8;text-align:center}
+@media(min-width:700px){#app{gap:10px}#stage{height:min(74vh,720px)}}
+</style>
+</head>
+<body>
+<div id="app">
+<header><div><h1>🏁 SPEED RACER INDIA</h1><div class="tag">Kolkata city edition • Dodge traffic • Collect coins</div></div><div class="stats"><div class="pill">SCORE<b id="score">0</b></div><div class="pill">BEST<b id="best">0</b></div></div></header>
+<div id="stage"><canvas id="game"></canvas><div id="overlay"><h2>🚗 Speed Racer India</h2><p>Race through Kolkata-inspired city streets.<br>Switch lanes, collect coins and avoid other vehicles!</p><button id="start">START RACING</button></div></div>
+<div class="controls"><button id="left" aria-label="Move left">⬅</button><button id="right" aria-label="Move right">➡</button></div>
+<div class="hint">Use ◀ ▶ buttons or keyboard arrow keys. Swipe left/right on the road.</div>
+</div>
+<script>
+(()=>{
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),stage=document.getElementById('stage');
+const scoreEl=document.getElementById('score'),bestEl=document.getElementById('best'),overlay=document.getElementById('overlay');
+let W=360,H=600, dpr=1, running=false,score=0,best=Number(localStorage.getItem('sriBest')||0),lane=1,playerY=.78,roadOffset=0,last=0,spawn=0,coinSpawn=0,speed=230,items=[];
+bestEl.textContent=best;
+function resize(){const r=stage.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);W=r.width;H=r.height;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0)}
+new ResizeObserver(resize).observe(stage);resize();
+const roadW= W*.66, roadX=(W-roadW)/2, laneW=roadW/3;
+function car(x,y,color,player=false){ctx.save();ctx.translate(x,y);ctx.fillStyle='#0005';ctx.beginPath();ctx.ellipse(0,17,15,25,0,0,Math.PI*2);ctx.fill();
+ctx.fillStyle=color;roundRect(-13,-22,26,44,7);ctx.fill();
+ctx.fillStyle=player?'#d8f4ff':'#bfe7ef';roundRect(-9,-13,18,12,4);ctx.fill();
+ctx.fillStyle='#172331';roundRect(-9,5,18,10,3);ctx.fill();
+ctx.fillStyle='#fff3b0';ctx.fillRect(-10,-20,5,3);ctx.fillRect(5,-20,5,3);
+ctx.fillStyle='#151a22';ctx.fillRect(-16,-13,4,11);ctx.fillRect(12,-13,4,11);ctx.fillRect(-16,9,4,10);ctx.fillRect(12,9,4,10);
+if(player){ctx.fillStyle='#ffcf4d';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.fillText('IND',0,2)}ctx.restore()}
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r)}
+function drawRoad(dt){ctx.fillStyle='#b9c7c5';ctx.fillRect(0,0,W,H);
+const sideW=Math.max(0,roadX-12);
+for(let y=-70;y<H+80;y+=105){let yy=(y+roadOffset*.55)%(H+105);
+  // Kolkata street blocks and shopfronts
+  ctx.fillStyle='#d9b99a';ctx.fillRect(5,yy,sideW-8,66);
+  ctx.fillStyle='#a86f57';ctx.fillRect(8,yy+8,Math.max(8,sideW-14),8);
+  ctx.fillStyle='#536b78';for(let wx=14;wx<sideW-8;wx+=24)ctx.fillRect(wx,yy+25,10,15);
+  ctx.fillStyle='#e6c58a';ctx.fillRect(W-sideW+3,yy,sideW-8,66);
+  ctx.fillStyle='#a85b43';ctx.fillRect(W-sideW+7,yy+8,Math.max(8,sideW-15),8);
+  ctx.fillStyle='#536b78';for(let wx=W-sideW+13;wx<W-12;wx+=24)ctx.fillRect(wx,yy+25,10,15);
+  // roadside palms
+  ctx.strokeStyle='#70543a';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(roadX-17,yy+66);ctx.lineTo(roadX-17,yy+30);ctx.stroke();
+  ctx.strokeStyle='#26764a';ctx.lineWidth=2;for(let a=-1;a<=1;a++){ctx.beginPath();ctx.moveTo(roadX-17,yy+32);ctx.lineTo(roadX-17+a*12,yy+23);ctx.stroke()}
+}
+ctx.fillStyle='#41464e';ctx.fillRect(roadX,0,roadW,H);ctx.fillStyle='#f5f0d7';ctx.fillRect(roadX+5,0,4,H);ctx.fillRect(roadX+roadW-9,0,4,H);
+ctx.strokeStyle='#e9e6d8';ctx.lineWidth=3;ctx.setLineDash([27,23]);ctx.lineDashOffset=-roadOffset;for(let i=1;i<3;i++){ctx.beginPath();ctx.moveTo(roadX+laneW*i,0);ctx.lineTo(roadX+laneW*i,H);ctx.stroke()}ctx.setLineDash([]);
+ctx.fillStyle='#f5c64c';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText('KOLKATA • CITY RACE',W/2,18);
+ctx.fillStyle='#e8b72d';ctx.font='bold 9px sans-serif';ctx.textAlign='left';ctx.fillText('TAXI',7,H-14);
+ctx.fillStyle='#e8b72d';ctx.textAlign='right';ctx.fillText('HOWRAH SIDE',W-7,H-14)}
+function drawCoin(x,y){ctx.fillStyle='#ffcf38';ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff1a8';ctx.lineWidth=3;ctx.stroke();ctx.fillStyle='#9b6410';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText('₹',x,y+4)}
+function draw(){ctx.clearRect(0,0,W,H);drawRoad();const px=roadX+laneW*(lane+.5),py=H*playerY;items.forEach(o=>{if(o.type==='coin')drawCoin(roadX+laneW*(o.lane+.5),o.y);else car(roadX+laneW*(o.lane+.5),o.y,o.color)});car(px,py,'#e23d35',true)}
+function addTraffic(){const l=Math.floor(Math.random()*3);items.push({type:'car',lane:l,y:-45,color:['#2776d2','#e5a52b','#9a67c7','#f1f1ed'][Math.floor(Math.random()*4)]})}
+function addCoin(){items.push({type:'coin',lane:Math.floor(Math.random()*3),y:-20})}
+function move(n){if(!running)return;lane=Math.max(0,Math.min(2,lane+n))}
+function end(){running=false;overlay.classList.remove('hidden');overlay.innerHTML='<h2>💥 RACE OVER</h2><p>Your score: <b>'+Math.floor(score)+'</b><br>Best score: <b>'+best+'</b><br>Try again and beat your record!</p><button id="start">RACE AGAIN</button>';document.getElementById('start').onclick=start}
+function start(){score=0;lane=1;items=[];speed=230;spawn=0;coinSpawn=1;roadOffset=0;running=true;last=0;scoreEl.textContent='0';overlay.classList.add('hidden');requestAnimationFrame(loop)}
+function loop(t){if(!running)return;const dt=Math.min((t-last)/1000||0,0.04);last=t;speed=Math.min(430,230+score*.45);roadOffset=(roadOffset+speed*dt)%50;score+=dt*10;scoreEl.textContent=Math.floor(score);
+spawn-=dt;coinSpawn-=dt;if(spawn<=0){addTraffic();spawn=Math.max(.48,1.05-score/500)}if(coinSpawn<=0){addCoin();coinSpawn=1.8+Math.random()*1.2}
+const py=H*playerY,px=roadX+laneW*(lane+.5);
+items.forEach(o=>{o.y+=speed*dt*(o.type==='coin'?1:1);if(o.type==='coin'&&Math.abs(o.y-py)<25&&o.lane===lane){o.hit=true;score+=25}if(o.type==='car'&&Math.abs(o.y-py)<34&&o.lane===lane){end()}});
+items=items.filter(o=>o.y<H+50&&!o.hit);
+if(Math.floor(score)>best){best=Math.floor(score);localStorage.setItem('sriBest',best);bestEl.textContent=best}
+draw();if(running)requestAnimationFrame(loop)}
+document.getElementById('start').onclick=start;document.getElementById('left').onclick=()=>move(-1);document.getElementById('right').onclick=()=>move(1);
+window.addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')move(-1);if(e.key==='ArrowRight'||e.key==='d')move(1);if(e.key===' '&&!running)start()});
+let sx=0;canvas.addEventListener('touchstart',e=>{sx=e.touches[0].clientX},{passive:true});canvas.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>25)move(dx<0?-1:1)},{passive:true});
+draw();
+})();
+</script>
+</body></html>
